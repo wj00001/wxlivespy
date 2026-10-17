@@ -234,7 +234,13 @@ class SpyService implements WXLiveEventHandler {
         // 对于 enter 和 comment，需要解析出 _o9h openid，并缓存下来。
         const decodedOpenID = WXDataDecoder.getOpenIDFromMsgId(o.msg_id);
         if (decodedOpenID === null) {
-          log.error(`getOpenIDFromMsgId failed, msg_id: ${o.msg_id}`);
+          log.warn(`getOpenIDFromMsgId failed, msg_id: ${o.msg_id}; forwarding ${o.decoded_type} with session-scoped sec_openid fallback`);
+          // The UI can display these comments, but previously they were dropped from the
+          // forwarded batch when the optional stable-ID decoder failed. CloudGarden can
+          // safely use sec_openid as a session-scoped fallback for comment/enter commands.
+          if ((o.decoded_type === 'comment' || o.decoded_type === 'enter') && o.sec_openid && o.msg_id) {
+            data.events.push({ ...o, decoded_openid: '' });
+          }
           return;
         }
         o.decoded_openid = decodedOpenID;
