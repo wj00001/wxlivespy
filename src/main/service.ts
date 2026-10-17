@@ -135,7 +135,7 @@ class SpyService implements WXLiveEventHandler {
       const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
       log.debug(msgTemplate(arg));
       event.reply('ipc-example', msgTemplate('pong'));
-      void this.startListener();
+      this.startListener();
     });
     ipcMain.handle('wxlive-get-config', (event, arg) => {
       return this.config?.getProp(arg as keyof ConfigProps);
