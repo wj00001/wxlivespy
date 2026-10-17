@@ -148,19 +148,6 @@ class WXLiveEventListener {
       });
       throw error;
     }
-    const page = await browser.newPage();
-    browser.on('disconnected', () => {
-      log.info('disconnected');
-    });
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-      request.continue();
-    });
-
-    page.on('response', (response) => {
-      this.handleResponse(response);
-    });
-    await page.goto(this.config.getProp('spy_url'), { waitUntil: 'networkidle2' });
   }
 }
 
