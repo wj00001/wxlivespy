@@ -8,6 +8,7 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
+import fs from 'fs';
 import path from 'path';
 import { app, BrowserWindow, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
@@ -85,7 +86,50 @@ const createWindow = async () => {
   const configFilePath = path.join(userDataPath, 'config.json');
   log.debug(`config file path: ${configFilePath}`);
   spyService = new SpyService(configFilePath, mainWindow);
-  spyService.setChromePath(getAssetPath('puppeteer_chrome', 'chrome.exe'));
+  const bundledChromeCandidates =
+    process.platform === 'win32'
+      ? [getAssetPath('puppeteer_chrome', 'chrome.exe')]
+      : process.platform === 'darwin'
+        ? [
+            getAssetPath(
+              'puppeteer_chrome',
+              'Google Chrome for Testing.app',
+              'Contents',
+              'MacOS',
+              'Google Chrome for Testing',
+            ),
+            getAssetPath(
+              'puppeteer_chrome',
+              'chrome-mac-arm64',
+              'Google Chrome for Testing.app',
+              'Contents',
+              'MacOS',
+              'Google Chrome for Testing',
+            ),
+            getAssetPath(
+              'puppeteer_chrome',
+              'chrome-mac-x64',
+              'Google Chrome for Testing.app',
+              'Contents',
+              'MacOS',
+              'Google Chrome for Testing',
+            ),
+            getAssetPath('puppeteer_chrome', 'Google Chrome.app', 'Contents', 'MacOS', 'Google Chrome'),
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            path.join(app.getPath('home'), 'Applications', 'Google Chrome.app', 'Contents', 'MacOS', 'Google Chrome'),
+          ]
+        : [
+            getAssetPath('puppeteer_chrome', 'chrome'),
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+          ];
+  const bundledChromePath = bundledChromeCandidates.find((candidate) => fs.existsSync(candidate));
+  if (bundledChromePath) {
+    spyService.setChromePath(bundledChromePath);
+  } else {
+    log.info('No bundled or system Chrome executable found; Puppeteer will try its default browser cache.');
+  }
   spyService.start();
 
   mainWindow.loadURL(resolveHtmlPath('index.html'));
