@@ -1,4 +1,5 @@
 // import SpyService from './service';
+import fs from 'fs';
 import log from 'electron-log';
 import puppeteer, { HTTPResponse } from 'puppeteer';
 import SpyConfig from './config';
@@ -100,16 +101,53 @@ class WXLiveEventListener {
 
     const windowSize = '--window-size=1024,1024';
 
+    const configuredChromePath = this.config.getProp('chrome_path');
+    const defaultChromePath = puppeteer.executablePath();
+    const executablePath =
+      configuredChromePath && fs.existsSync(configuredChromePath) ? configuredChromePath : defaultChromePath;
+
+    if (!executablePath || !fs.existsSync(executablePath)) {
+      throw new Error(
+        `Chrome executable was not found. Configured path: "${configuredChromePath ?? '(not set)'}"; Puppeteer default path: "${defaultChromePath}". Install Puppeteer's browser or place Chrome in assets/puppeteer_chrome.`,
+      );
+    }
+
+    log.info(`using Chrome executable: ${executablePath}`);
     const options = {
       defaultViewport: null,
       headless: false,
       args: ['--disable-setuid-sandbox', windowSize, '--hide-crash-restore-bubble', '--disable-gpu'],
-      executablePath: this.config.getProp('chrome_path'),
+      executablePath,
       ignoreHTTPSErrors: true,
       userDataDir: this.config.getProp('chrome_userdata_path'),
     };
 
     const browser = await puppeteer.launch(options);
+    try {
+      const page = await browser.newPage();
+      browser.on('disconnected', () => {
+        log.info('disconnected');
+      });
+      await page.setRequestInterception(true);
+      page.on('request', (request) => {
+        request.continue();
+      });
+
+      page.on('response', (response) => {
+        this.handleResponse(response).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          log.warn(`failed to process response ${response.url()}: ${message}`);
+        });
+      });
+      // Live dashboards can keep network activity open; waiting for network idle can make startup appear stuck.
+      await page.goto(this.config.getProp('spy_url'), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    } catch (error) {
+      await browser.close().catch((closeError: unknown) => {
+        const message = closeError instanceof Error ? closeError.message : String(closeError);
+        log.warn(`failed to close browser after startup error: ${message}`);
+      });
+      throw error;
+    }
     const page = await browser.newPage();
     browser.on('disconnected', () => {
       log.info('disconnected');
