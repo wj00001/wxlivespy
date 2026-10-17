@@ -1,10 +1,15 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import log from 'electron-log';
 // import { shell } from 'electron';
 import { LiveInfo } from '../CustomTypes';
 import { date2str, stringmask } from '../CommonUtil';
+
+interface ListenerStatus {
+  status: 'idle' | 'starting' | 'started' | 'error';
+  message: string;
+}
 
 interface FormData {
   hostID: string;
@@ -32,6 +37,18 @@ function StatusPanel() {
   [display, setDisplay] = useState('none');
 
   [formData, setFormData] = useState<FormData>(initialFormData);
+  const [listenerState, setListenerState] = useState<ListenerStatus>({
+    status: 'idle',
+    message: '尚未开始监听。',
+  });
+
+  useEffect(() => {
+    const unsubscribe = window.electron.ipcRenderer.on('wxlive-listener-status', (arg) => {
+      setListenerState(arg as ListenerStatus);
+    });
+    return unsubscribe;
+  }, []);
+
   // window.electron.ipcRenderer.once('wxlive-status', (arg) => {
   //   // eslint-disable-next-line no-console
   //   console.log('2this is a wxlive event2');
@@ -58,14 +75,27 @@ function StatusPanel() {
       <h1>监听</h1>
       <button
         type="button"
+        disabled={listenerState.status === 'starting' || listenerState.status === 'started'}
         onClick={() => {
+          setListenerState({ status: 'starting', message: '正在请求启动监听…' });
           window.electron.ipcRenderer.sendMessage('ipc-example', ['ping']);
           // eslint-disable-next-line no-console
           console.log('ipc-example', ['ping']);
         }}
       >
-        开始监听
+        {listenerState.status === 'starting'
+          ? '正在启动…'
+          : listenerState.status === 'started'
+            ? '监听已启动'
+            : '开始监听'}
       </button>
+      <p
+        role="status"
+        aria-live="polite"
+        style={{ color: listenerState.status === 'error' ? 'red' : 'inherit' }}
+      >
+        {listenerState.message}
+      </p>
       <div id="wxlive-status-div" style={{ display }}>
         <h3>直播间信息</h3>
         <table>

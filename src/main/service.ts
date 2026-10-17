@@ -28,6 +28,10 @@ class SpyService implements WXLiveEventHandler {
 
   private idCache: IDCache;
 
+  private listenerStarting = false;
+
+  private listenerStarted = false;
+
   constructor(configFilePath: string, mainWindow: BrowserWindow) {
     this.config = new SpyConfig(configFilePath);
     this.config.load();
@@ -173,8 +177,47 @@ class SpyService implements WXLiveEventHandler {
     });
   }
 
-  private startListener(): void {
-    this.listener?.start();
+  private sendListenerStatus(status: 'starting' | 'started' | 'error', message: string): void {
+    this.mainWindow?.webContents.send('wxlive-listener-status', { status, message });
+  }
+
+  private async startListener(): Promise<void> {
+    if (this.listenerStarting) {
+      this.sendListenerStatus('starting', '监听正在启动，请稍候…');
+      return;
+    }
+
+    if (this.listenerStarted) {
+      this.sendListenerStatus(
+        'started',
+        '监听浏览器已打开。请扫码登录视频号管理后台，并进入直播间；进入后才会收到弹幕。',
+      );
+      return;
+    }
+
+    if (!this.listener) {
+      this.sendListenerStatus('error', '监听器尚未初始化，请关闭并重新打开工具。');
+      return;
+    }
+
+    this.listenerStarting = true;
+    this.sendListenerStatus('starting', '正在启动浏览器并打开视频号管理后台…');
+
+    try {
+      await this.listener.start();
+      this.listenerStarted = true;
+      this.sendListenerStatus(
+        'started',
+        '浏览器已打开。请扫码登录视频号管理后台，并进入正在直播的直播间；进入后才会收到弹幕。',
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const details = error instanceof Error ? error.stack ?? error.message : message;
+      log.error(`start listener failed: ${details}`);
+      this.sendListenerStatus('error', `启动失败：${message}`);
+    } finally {
+      this.listenerStarting = false;
+    }
   }
 
   private decodeOpenIDInEvents(decodedData: DecodedData): DecodedData {

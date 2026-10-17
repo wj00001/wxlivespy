@@ -6,6 +6,7 @@ export type Channels =
   | 'ipc-example'
   | 'wxlive-event'
   | 'wxlive-status'
+  | 'wxlive-listener-status'
   | 'wxlive-set-all-config'
   | 'wxlive-set-config'
   | 'electron-baidu-tongji-reply'
